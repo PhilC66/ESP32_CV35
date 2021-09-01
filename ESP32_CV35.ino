@@ -426,7 +426,7 @@ void setup() {
   setup_wifi();
   // Serial.println("Starting UDP");
   // Udp.begin(localPort);
-  timeClient.begin(8888);
+  timeClient.begin(8888);// port configuré sur routeur SML
   delay (1000);
   Majheure();
   // setSyncProvider(getNtpTime); // mise à l'heure
@@ -3118,7 +3118,7 @@ void reconnect() {
       Alarm.delay(5000);
     }
     cpt ++;
-    if(cpt > 20){ // si connection MQTT impossible
+    if(cpt > 100){ // si connection MQTT impossible
       cpt = 0;
       ResetHard();
     } 
