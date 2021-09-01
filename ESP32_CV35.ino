@@ -12,7 +12,7 @@
               | Violet | Blanc | Feux | Cde
   OFF         |    0   |   0   |  0   |  D Feux D + Tqt Ouvert (si Tqt)
   Violet Fixe |    1   |   0   |  1   |  F
-  Violet Cli  |  Cliv1 |   0   |  7   |  V Feux Violet Marche à Vue
+  Violet Cli  |  Cliv1 |   0   |  7   |  V Feux Violet Cli Marche à Vue
   Blanc Fixe  |    0   |   1   |  2   |  O
   Blanc Cli 1 |    0   |  Cli1 |  3   |  M
   Blanc Cli 2 |    0   |  Cli2 |  4   |  S
@@ -35,14 +35,24 @@
 	Librairie TimeAlarms.h modifiée a priori pas necessaire nonAVR = 12
 
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
-  Arduino IDE 1.8.10 : 905346 69%, 45616 13% sur PC
-  Arduino IDE 1.8.10 : 905134 69%, 45616 13% sur raspi5
+  Arduino IDE 1.8.10 : 907090 69%, 45624 13% sur PC
+  Arduino IDE 1.8.10 : 905138 69%, 45616 13% sur raspi
 
-  V1-0 xx/12/2020 pas installé
+  V1-1 29/08/2021 pas installé
+  suite echec mise à l'heure reseau 4G
+  1 - si echec mise a l'heure, heure imposée 2021/08/01/ 08:00:00
+  2 - suppression reset hard sur echec
+  3 - ajouter surveillance Alarm Acquisition, si arreté suite majheure automatique
+      relancer les Alarm
+  4 - ajouter commande MAJHEURE=yyyymmddhhmmss ou MAJHEURE => NTP
+  5 - ajouter Bouton Reset sur page web
+  6 - suppression rearmenent tempo AutoF sur demande ST
+
+  V1-0 29/07/2020 installé
   Version Coupure periodique Alim routeur
 
 */
-String ver        = "V1-0";
+String ver        = "V1-1";
 int    Magique    = 8;
 
 #include <Battpct.h>
@@ -184,7 +194,7 @@ struct  config_t           // Structure configuration sauvée en EEPROM
   int     Dsonn;           // Durée Sonnerie
   int     BattLow;         // Seuil Alarme Batterie faible %
   bool    LumAuto;         // luminosité Auto=true
-  bool    AutoF;           // true Retour automatique F si O/M/S apres TempoAutoF
+  bool    AutoF;           // true Retour automatique F si O/S apres TempoAutoF
   int     TempoAutoF;      // temps AutoF (s)
   char    Idchar[11];      // Id
   char    mqttServer[26];  // Serveur MQTT
@@ -218,6 +228,8 @@ AlarmId Alim_Ext_1;        // Heure 1 reset Routeur
 AlarmId Alim_Ext_2;        // Heure 2 reset Routeur
 AlarmId Alim_Ext_3;        // Heure 3 reset Routeur
 AlarmId TSonn;             // tempo durée de la sonnerie
+
+bool AcquisitionOK = false;// surveille boucle acquisition
 
 portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -401,7 +413,7 @@ void setup() {
 
   setSyncProvider(getNtpTime); // mise à l'heure
   Serial.println(displayTime(0));
-  setSyncInterval(30);         // intervalle mise à l'heure, 30 s en phase demarrage
+  setSyncInterval(3600);       // intervalle mise à l'heure, 30 s en phase demarrage
   AIntru_HeureActuelle();      // calcul jour/nuit et timeZone
   setSyncProvider(getNtpTime); // mise à l'heure new timezone
   Serial.println(displayTime(0));
@@ -461,6 +473,7 @@ void setup() {
   server.on("/cal",      CalendarPage);
   server.on("/LumLUT",   LumLUTPage);
   server.on("/datetime", handleDateTime); // renvoie Date et Heure
+  server.on("/reset",    demandereset);
   server.begin();
   Serial.println("HTTP server started");
   
@@ -471,7 +484,15 @@ void setup() {
 //---------------------------------------------------------------------------
 void loop() {
   recvOneChar();
-
+  static unsigned long timeracquisition = millis();
+  if(millis()-timeracquisition > 15000){
+    timeracquisition = millis();
+    AcquisitionOK = false;
+    if(!AcquisitionOK){ // Alarm ont ete arretées suite mise a l'heure
+      lancement_Alarm();
+      Acquisition();
+    }
+  }
   if (rebond1 > millis()) rebond1 = millis();
 //*************** Verification Alarme Batterie Externe ***************
   static unsigned long startE1 = millis();
@@ -512,15 +533,17 @@ void loop() {
 }	//fin loop
 //---------------------------------------------------------------------------
 void Acquisition() {
+  AcquisitionOK = true;
   static int cpt = 0; // compte le nombre de passage boucle
   static bool firstdecision = false;
-  
-  static byte cptwifiattempt = 0;
+  // static byte cptwifiattempt = 0;
+
   if((WiFi.status() != WL_CONNECTED) || year()< 2000 || timeStatus() == timeNotSet){
-    // mise à l'heure si raté au lancement
+    // reconnexion Wifi et mise à l'heure si raté au lancement
+    Serial.println("tentative cnx Wifi");
     setup_wifi();
     setSyncProvider(getNtpTime); // mise à l'heure
-    if(cptwifiattempt ++ > 10)ResetHard();
+    // if(cptwifiattempt ++ > 10)ResetHard();
   }
   
   if (!mqttClient.connected() && WiFi.status() == WL_CONNECTED) {
@@ -533,7 +556,7 @@ void Acquisition() {
        et mise a l'heure OK*/
     action_wakeup_reason(get_wakeup_reason());
     firstdecision = true;
-    setSyncInterval(3600); // retour intervalle MAJheure normal
+    setSyncInterval(300); // retour intervalle MAJheure normal
   }
   cpt ++;
 
@@ -794,7 +817,7 @@ void traite_sms(byte slot) {
   Serial.print("textesms  = "), Serial.println(textesms);
   messageId();
   if (textesms.indexOf("ETAT") == 0 || textesms.indexOf("ST") == 0) {// "ETAT? de l'installation"
-    if (config.AutoF)Alarm.enable(Auto_F); // armement TempoAutoF
+    // if (config.AutoF)Alarm.enable(Auto_F); // armement TempoAutoF
     generationMessage();
     EnvoyerSms(sms);
   }
@@ -899,8 +922,42 @@ void traite_sms(byte slot) {
     message += fl;
     EnvoyerSms( sms);
   }
-  else if (textesms.indexOf("MAJHEURE") == 0) {	//	forcer mise a l'heure
-    setSyncProvider(getNtpTime); // mise à l'heure
+  else if (textesms.indexOf("MAJHEURE") == 0) {	//	forcer mise a l'heure yyyymmddhhmmss =MAJHEURE=20210805180000
+    bool valid = false;
+    // Serial.println(textesms.substring(9,textesms.length()));
+    // Serial.println(textesms.substring(9,textesms.length()).length());
+    if(textesms.substring(9,textesms.length()).length() == 14){
+      String payload = textesms.substring(9,textesms.length());
+      int an   = payload.substring(0,4).toInt();
+      int mois = payload.substring(4,6).toInt();
+      int jour = payload.substring(6,8).toInt();
+      int heur = payload.substring(8,10).toInt();
+      int minu = payload.substring(10,12).toInt();
+      int seco = payload.substring(12,14).toInt();
+      if(an>2000 and an<2200){valid = true;}
+      if(mois>0 and mois<13){valid = true;}
+      if(jour>0 and jour<32){valid = true;}
+      if(heur>0 and heur<24){valid = true;}
+      if(minu>0 and minu<60){valid = true;}
+      if(seco>0 and seco<60){valid = true;}
+      // Serial.println(an);
+      // Serial.println(mois);
+      // Serial.println(jour);
+      // Serial.println(heur);
+      // Serial.println(minu);
+      // Serial.println(seco);
+      if(valid){
+        arret_Alarm();
+        setTime(heur,minu,seco,jour,mois,an);// mise a la dateHeure
+        lancement_Alarm();
+        AIntru_HeureActuelle();
+      }
+    } else {
+      arret_Alarm();
+      setSyncProvider(getNtpTime); // mise à l'heure
+      lancement_Alarm();
+      AIntru_HeureActuelle();
+    }
     message += "Mise a l'heure" + fl;
     message += "Heure Sys = ";
     message += displayTime(0);
@@ -2976,7 +3033,7 @@ void HomePage() {
   // webpage += "<a href='/Tel_list'><button>Tel_list</button></a>";
   webpage += "<a href='/cal'><button>Calendar</button></a>";
   webpage += "<a href='/LumLUT'><button>LumLUT</button></a>";
-  // webpage += "<a href='/wifioff'><button>Wifi Off</button></a>";
+  webpage += "<a href='/reset'><button>Reset</button></a>";
   append_page_footer();
   SendHTML_Content();
   SendHTML_Stop(); // Stop is needed because no content length was sent
@@ -3014,7 +3071,7 @@ void setup_wifi() {
   while (WiFi.status() != WL_CONNECTED) {
     Alarm.delay(500);
     Serial.print(".");
-    if(cpt ++ > 20) return;
+    if(cpt ++ > 15) return;
   }
 
   Serial.println("");
@@ -3099,7 +3156,7 @@ const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
 byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 
 time_t getNtpTime(){
-  // static byte cpt = 0;
+  static bool first = true;
   IPAddress ntpServerIP; // NTP server's ip address
 
   while (Udp.parsePacket() > 0) ; // discard any previously received packets
@@ -3125,14 +3182,23 @@ time_t getNtpTime(){
       // bug : date erronée 07/02/2036 07:28:16
       // si secsSince1900 = 0
       Serial.print("timestamp:"),Serial.println(secsSince1900);
-      if(secsSince1900 == 0) ResetHard();
-      
+      if(secsSince1900 == 0){
+        first = false;
+        return 0;//idem not sync
+      }
+      first = false;
       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
-    Alarm.delay(0);
+    Alarm.delay(1);
   }
   Serial.println("No NTP Response :-(");
-  return 0; // return 0 if unable to get the time
+  if(first){
+    first = false;
+    return 1627804800;//2021/08/01 08:00:00
+  } else {
+    return 0; // return 0 if unable to get the time
+  }
+  return 0; // pas utile mais au cas ou!,return 0 if unable to get the time
 }
 //---------------------------------------------------------------------------
 void sendNTPpacket(IPAddress &address){
@@ -3409,7 +3475,7 @@ void AlimExt(){
     digitalWrite(PinAlimExt12,LOW); // coupure, Alimentation du relais externe
     Alarm.delay(config.TOffExt*1000);
     digitalWrite(PinAlimExt12,HIGH); // retour normal, relais externe repos
-    MajLog("Auto","RouteurOn");
+    MajLog("Auto","RouteurAutoReset");
   } else {
     digitalWrite(PinAlimExt12,HIGH); // confirmation normal
   }
@@ -3459,6 +3525,32 @@ void ArretSonnerie() {
   Serial.println(Alarm.getTriggeredAlarmId());
   digitalWrite(PinSirene, HIGH);	// Arret Sonnerie
   Alarm.disable(TSonn);			// on arrete la tempo sonnerie
+}
+//---------------------------------------------------------------------------
+void arret_Alarm(){
+  Alarm.disable(DebutJour);
+  Alarm.disable(FinJour);
+  Alarm.disable(Alim_Ext_1);
+  Alarm.disable(Alim_Ext_2);
+  Alarm.disable(Alim_Ext_3);
+}
+//---------------------------------------------------------------------------
+void lancement_Alarm(){
+  Alarm.enable(DebutJour);
+  Alarm.enable(FinJour);
+  Alarm.enable(loopPrincipale);
+  if(config.RouteurAuto){
+    Alarm.enable(Alim_Ext_1);
+    Alarm.enable(Alim_Ext_2);
+    Alarm.enable(Alim_Ext_3);
+  }
+}
+//---------------------------------------------------------------------------
+void demandereset(){
+  SendHTML_Header();
+  Serial.println("Reset Hard");
+  FlagReset = true;
+  SendHTML_Content();
 }
 //---------------------------------------------------------------------------
 /* --------------------  test local serial seulement ----------------------*/
