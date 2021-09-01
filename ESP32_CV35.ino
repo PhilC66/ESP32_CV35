@@ -35,8 +35,15 @@
 	Librairie TimeAlarms.h modifiée a priori pas necessaire nonAVR = 12
 
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
+  Arduino IDE 1.8.10 : 908070 69%, 45736 13% sur PC
+  Arduino IDE 1.8.10 : x 69%, x 13% sur raspi
+
+  V1-2 01/09/2021 pas installé
+  remplacement mise a l'heure NTP et TZ
+
+  Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
   Arduino IDE 1.8.10 : 907090 69%, 45624 13% sur PC
-  Arduino IDE 1.8.10 : 905138 69%, 45616 13% sur raspi
+  Arduino IDE 1.8.10 : x 69%, x 13% sur raspi
 
   V1-1 29/08/2021 pas installé
   suite echec mise à l'heure reseau 4G
@@ -52,12 +59,14 @@
   Version Coupure periodique Alim routeur
 
 */
-String ver        = "V1-1";
+String ver        = "V1-2";
 int    Magique    = 8;
 
 #include <Battpct.h>
 #include <WiFi.h>
+#include <NTPClient.h>
 #include <TimeLib.h>
+#include <Timezone.h>    // https://github.com/JChristensen/Timezone
 #include <WiFiUdp.h>
 #include <TimeAlarms.h>
 #include <PubSubClient.h>
@@ -112,8 +121,8 @@ char filecalibration[11] = "/coeff.txt";    // fichier en SPIFFS contenant les d
 char filelog[9]          = "/log.txt";      // fichier en SPIFFS contenant le log
 char filelumlut[13]      = "/lumlut.txt";   // fichier en SPIFFS LUT luminosité
 
-static const char ntpServerName[] = "fr.pool.ntp.org";
-int timeZone = +1;
+// static const char ntpServerName[] = "fr.pool.ntp.org";
+// int timeZone = +1;
 
 const String Mois[13] = {"", "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre"};
 String Sbidon 		= ""; // String texte temporaire
@@ -235,9 +244,16 @@ portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
-WiFiUDP Udp;
-unsigned int localPort = 8888;  // local port to listen for UDP packets
-time_t getNtpTime();
+WiFiUDP ntpUDP;
+int GTMOffset = 0; // SET TO UTC TIME
+NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", GTMOffset*60*60, 60*60*1000);
+
+// Central European Time (Frankfurt, Paris)
+TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
+TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European Standard Time
+Timezone CE(CEST, CET);
+// unsigned int localPort = 8888;  // local port to listen for UDP packets
+// time_t getNtpTime();
 //---------------------------------------------------------------------------
 void IRAM_ATTR handleInterruptIp1() { // Entrée 1
 
@@ -293,7 +309,7 @@ void setup() {
   recordn = sizeof(config) + 1;
   Serial.print("len config ="), Serial.println(sizeof(config));
   EEPROM.get(recordn, record); // Lecture des log
-  Alarm.delay(500);
+  delay(500);
   if (config.magic != Magique) {
     /* verification numero magique si different
     		erreur lecture EEPROM ou carte vierge
@@ -408,15 +424,17 @@ void setup() {
   }
 
   setup_wifi();
-  Serial.println("Starting UDP");
-  Udp.begin(localPort);
-
-  setSyncProvider(getNtpTime); // mise à l'heure
-  Serial.println(displayTime(0));
-  setSyncInterval(3600);       // intervalle mise à l'heure, 30 s en phase demarrage
-  AIntru_HeureActuelle();      // calcul jour/nuit et timeZone
-  setSyncProvider(getNtpTime); // mise à l'heure new timezone
-  Serial.println(displayTime(0));
+  // Serial.println("Starting UDP");
+  // Udp.begin(localPort);
+  timeClient.begin(8888);
+  delay (1000);
+  Majheure();
+  // setSyncProvider(getNtpTime); // mise à l'heure
+  // Serial.println(displayTime(0));
+  // setSyncInterval(3600);       // intervalle mise à l'heure, 30 s en phase demarrage
+  // AIntru_HeureActuelle();      // calcul jour/nuit et timeZone
+  // setSyncProvider(getNtpTime); // mise à l'heure new timezone
+  // Serial.println(displayTime(0));
   AIntru_HeureActuelle();      // calcul jour/nuit et timeZone
   
   mqttClient.setServer(config.mqttServer, config.mqttPort);
@@ -485,10 +503,10 @@ void setup() {
 void loop() {
   recvOneChar();
   static unsigned long timeracquisition = millis();
-  if(millis()-timeracquisition > 15000){
+  if(millis() - timeracquisition > 15000){ // > boucle Acquisition = 10s
     timeracquisition = millis();
     AcquisitionOK = false;
-    if(!AcquisitionOK){ // Alarm ont ete arretées suite mise a l'heure
+    if(!AcquisitionOK){ // Alarm ont ete arretées suite pb mise a l'heure
       lancement_Alarm();
       Acquisition();
     }
@@ -542,7 +560,8 @@ void Acquisition() {
     // reconnexion Wifi et mise à l'heure si raté au lancement
     Serial.println("tentative cnx Wifi");
     setup_wifi();
-    setSyncProvider(getNtpTime); // mise à l'heure
+    Majheure();
+    // setSyncProvider(getNtpTime); // mise à l'heure
     // if(cptwifiattempt ++ > 10)ResetHard();
   }
   
@@ -556,7 +575,7 @@ void Acquisition() {
        et mise a l'heure OK*/
     action_wakeup_reason(get_wakeup_reason());
     firstdecision = true;
-    setSyncInterval(300); // retour intervalle MAJheure normal
+    // setSyncInterval(300); // retour intervalle MAJheure normal
   }
   cpt ++;
 
@@ -954,7 +973,7 @@ void traite_sms(byte slot) {
       }
     } else {
       arret_Alarm();
-      setSyncProvider(getNtpTime); // mise à l'heure
+      Majheure(); // mise à l'heure
       lancement_Alarm();
       AIntru_HeureActuelle();
     }
@@ -2574,9 +2593,9 @@ void AIntru_HeureActuelle() {
     }
   }
   if(HeureEte()){
-    timeZone = config.hete;
+    // timeZone = config.hete;
   } else {
-    timeZone = config.hhiver;
+    // timeZone = config.hhiver;
   }
 }
 //---------------------------------------------------------------------------
@@ -3082,7 +3101,7 @@ void setup_wifi() {
 //---------------------------------------------------------------------------
 void reconnect() {
   // Loop until we're reconnected
-  byte cpt = 0;
+  static byte cpt = 0;
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
@@ -3097,8 +3116,13 @@ void reconnect() {
       Serial.println(" try again in 5 seconds");
       // Wait 5 seconds before retrying
       Alarm.delay(5000);
+    }
+    cpt ++;
+    if(cpt > 20){ // si connection MQTT impossible
+      cpt = 0;
+      ResetHard();
     } 
-    if(cpt ++ > 5) return;
+    if(cpt % 5 == 0) return;
   }
 }
 //---------------------------------------------------------------------------
@@ -3151,77 +3175,95 @@ bool HeureEte() {
   return Hete;
 }
 //---------------------------------------------------------------------------
-/*-------- NTP code ----------*/
-const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
-byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
-
-time_t getNtpTime(){
+void Majheure(){
   static bool first = true;
-  IPAddress ntpServerIP; // NTP server's ip address
-
-  while (Udp.parsePacket() > 0) ; // discard any previously received packets
-  Serial.println("Transmit NTP Request");
-  // get a random server from the pool
-  WiFi.hostByName(ntpServerName, ntpServerIP);
-  Serial.print(ntpServerName);
-  Serial.print(": ");
-  Serial.println(ntpServerIP);
-  sendNTPpacket(ntpServerIP);
-  static uint32_t beginWait = millis();
-  while (millis() - beginWait < 1500) {
-    int size = Udp.parsePacket();
-    if (size >= NTP_PACKET_SIZE) {
-      Serial.println("Receive NTP Response");
-      Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
-      unsigned long secsSince1900;
-      // convert four bytes starting at location 40 to a long integer
-      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
-      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
-      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
-      secsSince1900 |= (unsigned long)packetBuffer[43];
-      // bug : date erronée 07/02/2036 07:28:16
-      // si secsSince1900 = 0
-      Serial.print("timestamp:"),Serial.println(secsSince1900);
-      if(secsSince1900 == 0){
-        first = false;
-        return 0;//idem not sync
-      }
+  if (timeClient.update()){
+    Serial.println ( "Adjust local clock" );
+    unsigned long epoch = timeClient.getEpochTime();
+    setTime(epoch);
+    setTime(CE.toLocal(now()));
+  }else{
+    Serial.println ( "NTP Update not WORK!!" );
+    if(first){
+      setTime(1627804800);//2021/08/01 08:00:00
       first = false;
-      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
     }
-    Alarm.delay(1);
   }
-  Serial.println("No NTP Response :-(");
-  if(first){
-    first = false;
-    return 1627804800;//2021/08/01 08:00:00
-  } else {
-    return 0; // return 0 if unable to get the time
-  }
-  return 0; // pas utile mais au cas ou!,return 0 if unable to get the time
+  Serial.print("timeset:"),Serial.println(timeStatus());    
+  Serial.println(displayTime(0));
 }
 //---------------------------------------------------------------------------
-void sendNTPpacket(IPAddress &address){
-  // send an NTP request to the time server at the given address
-  // set all bytes in the buffer to 0
-  memset(packetBuffer, 0, NTP_PACKET_SIZE);
-  // Initialize values needed to form NTP request
-  // (see URL above for details on the packets)
-  packetBuffer[0] = 0b11100011;   // LI, Version, Mode
-  packetBuffer[1] = 0;     // Stratum, or type of clock
-  packetBuffer[2] = 6;     // Polling Interval
-  packetBuffer[3] = 0xEC;  // Peer Clock Precision
-  // 8 bytes of zero for Root Delay & Root Dispersion
-  packetBuffer[12] = 49;
-  packetBuffer[13] = 0x4E;
-  packetBuffer[14] = 49;
-  packetBuffer[15] = 52;
-  // all NTP fields have been given values, now
-  // you can send a packet requesting a timestamp:
-  Udp.beginPacket(address, 123); //NTP requests are to port 123
-  Udp.write(packetBuffer, NTP_PACKET_SIZE);
-  Udp.endPacket();
-}
+/*-------- NTP code ----------*/
+// const int NTP_PACKET_SIZE = 48; // NTP time is in the first 48 bytes of message
+// byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+
+// time_t getNtpTime(){
+//   static bool first = true;
+//   IPAddress ntpServerIP; // NTP server's ip address
+
+//   while (Udp.parsePacket() > 0) ; // discard any previously received packets
+//   Serial.println("Transmit NTP Request");
+//   // get a random server from the pool
+//   WiFi.hostByName(ntpServerName, ntpServerIP);
+//   Serial.print(ntpServerName);
+//   Serial.print(": ");
+//   Serial.println(ntpServerIP);
+//   sendNTPpacket(ntpServerIP);
+//   static uint32_t beginWait = millis();
+//   while (millis() - beginWait < 1500) {
+//     int size = Udp.parsePacket();
+//     if (size >= NTP_PACKET_SIZE) {
+//       Serial.println("Receive NTP Response");
+//       Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
+//       unsigned long secsSince1900;
+//       // convert four bytes starting at location 40 to a long integer
+//       secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+//       secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+//       secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+//       secsSince1900 |= (unsigned long)packetBuffer[43];
+//       // bug : date erronée 07/02/2036 07:28:16
+//       // si secsSince1900 = 0
+//       Serial.print("timestamp:"),Serial.println(secsSince1900);
+//       if(secsSince1900 == 0){
+//         first = false;
+//         return 0;//idem not sync
+//       }
+//       first = false;
+//       return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+//     }
+//     Alarm.delay(1);
+//   }
+//   Serial.println("No NTP Response :-(");
+//   if(first){
+//     first = false;
+//     return 1627804800;//2021/08/01 08:00:00
+//   } else {
+//     return 0; // return 0 if unable to get the time
+//   }
+//   return 0; // pas utile mais au cas ou!,return 0 if unable to get the time
+// }
+//---------------------------------------------------------------------------
+// void sendNTPpacket(IPAddress &address){
+//   // send an NTP request to the time server at the given address
+//   // set all bytes in the buffer to 0
+//   memset(packetBuffer, 0, NTP_PACKET_SIZE);
+//   // Initialize values needed to form NTP request
+//   // (see URL above for details on the packets)
+//   packetBuffer[0] = 0b11100011;   // LI, Version, Mode
+//   packetBuffer[1] = 0;     // Stratum, or type of clock
+//   packetBuffer[2] = 6;     // Polling Interval
+//   packetBuffer[3] = 0xEC;  // Peer Clock Precision
+//   // 8 bytes of zero for Root Delay & Root Dispersion
+//   packetBuffer[12] = 49;
+//   packetBuffer[13] = 0x4E;
+//   packetBuffer[14] = 49;
+//   packetBuffer[15] = 52;
+//   // all NTP fields have been given values, now
+//   // you can send a packet requesting a timestamp:
+//   Udp.beginPacket(address, 123); //NTP requests are to port 123
+//   Udp.write(packetBuffer, NTP_PACKET_SIZE);
+//   Udp.endPacket();
+// }
 //---------------------------------------------------------------------------
 void CalendarPage() {
   SendHTML_Header();
