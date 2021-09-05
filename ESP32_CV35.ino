@@ -35,8 +35,8 @@
 	Librairie TimeAlarms.h modifiée a priori pas necessaire nonAVR = 12
 
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
-  Arduino IDE 1.8.10 : 908070 69%, 45736 13% sur PC
-  Arduino IDE 1.8.10 : x 69%, x 13% sur raspi
+  Arduino IDE 1.8.10 : 908474 69%, 45736 13% sur PC
+  Arduino IDE 1.8.10 : 908454 69%, 45736 13% sur raspi
 
   V1-2 01/09/2021 pas installé
   remplacement mise a l'heure NTP et TZ
@@ -723,6 +723,16 @@ void GestionFeux() {
       blinker = false;
       FastRate.attach_ms(config.FastRater, toggle);
       break;
+    case 7: // V, Violet Cli, Blanc 0
+      Serial.println("Feux Vlt Clignotant lent");
+      ledcWrite(VltPwmChanel, 0);
+      ledcWrite(BlcPwmChanel, 0);
+      digitalWrite(PinAlimLum, HIGH); // allumage Alim LDR
+      digitalWrite(PinFVlt, LOW);
+      FastBlink.detach();
+      FastRate.detach();
+      SlowBlink.attach_ms(config.SlowBlinker, blink);
+      break;
     default:// idem 0 Violet 0, Blanc 0
       Serial.println("Feux Eteint");
       ledcWrite(VltPwmChanel, 0);
@@ -749,10 +759,18 @@ void toggle() {
 //---------------------------------------------------------------------------
 void blink() {
   if (blinker) {
-    ledcWrite(BlcPwmChanel, 0);
+    if(Feux == 3 || Feux == 4){// M ou S 
+      ledcWrite(BlcPwmChanel, 0);
+    } else if (Feux == 7){     // V
+      ledcWrite(VltPwmChanel, 0);
+    }
     blinker = false;
   } else {
-    Update_FBlc();
+    if(Feux == 3 || Feux == 4){// M ou S 
+      Update_FBlc();
+    } else if (Feux == 7){     // V
+      Update_FVlt();
+    }
     blinker = true;
   }
 }
@@ -789,9 +807,8 @@ void Extinction() {
 //---------------------------------------------------------------------------
 void AutoFermeture() {
   // fin de TempoAutoF
-  // Feux à F si Feux = O/S rien faire si M
-  // Feux à F si Feux = O/S rien faire si M
-  if (Feux == 2 || Feux == 4) {
+  // Feux à F si Feux = O/S/V rien faire si M
+  if (Feux == 2 || Feux == 4 || Feux == 7) {
     Feux = 1;
     GestionFeux(); // Violet 1, Blanc 0
     generationMessage();
@@ -1428,12 +1445,10 @@ void traite_sms(byte slot) {
       MajLog(nom, "DCV");
     }
     else if (textesms.indexOf("F") == 0) {
-      if(Feux < 5 ){ // si Carré fermé ne rien faire
-        EffaceAlaCdeFBlc();
-        Feux = 1;
-        GestionFeux(); // Violet 1, Blanc 0
-        MajLog(nom, "FCV");
-      }
+      EffaceAlaCdeFBlc();
+      Feux = 1;
+      GestionFeux(); // Violet 1, Blanc 0
+      MajLog(nom, "FCV");
     }
     else if (textesms.indexOf("O") == 0) {
       EffaceAlaCdeFBlc();
@@ -1447,13 +1462,20 @@ void traite_sms(byte slot) {
       Feux = 3;
       GestionFeux(); // Violet 0, Blanc Manoeuvre Cli lent
       MajLog(nom, "MCV");
-      if (config.AutoF)Alarm.enable(Auto_F); // armement TempoAutoF
+      // if (config.AutoF)Alarm.enable(Auto_F); // armement TempoAutoF
     }
     else if (textesms.indexOf("S") == 0) {
       EffaceAlaCdeFBlc();
       Feux = 4;
       GestionFeux(); // Violet 0, Blanc Secteur Cli rapide
       MajLog(nom, "SCV");
+      if (config.AutoF)Alarm.enable(Auto_F); // armement TempoAutoF
+    }
+    else if (textesms.indexOf("V") == 0) {
+      EffaceAlaCdeFBlc();
+      Feux = 7;
+      GestionFeux(); // Violet Cli, Blanc 0
+      MajLog(nom, "VCV");
       if (config.AutoF)Alarm.enable(Auto_F); // armement TempoAutoF
     }
     else {
@@ -2030,6 +2052,9 @@ void generationMessage() {
       break;
     case 4: // Violet 0, Blanc Secteur Cli rapide
       message += "S";
+      break;
+    case 7: // Violet Cli, Blanc 0
+      message += "V";
       break;
   }
   message += String(Id.substring(5, 9));
