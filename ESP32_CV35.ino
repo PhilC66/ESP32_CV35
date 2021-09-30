@@ -34,11 +34,15 @@
 
 	Librairie TimeAlarms.h modifiée a priori pas necessaire nonAVR = 12
 
+  V1-3 25/09/2021 installé Cv35 30/09/2021
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
-  Arduino IDE 1.8.10 : 908474 69%, 45736 13% sur PC
-  Arduino IDE 1.8.10 : 908454 69%, 45736 13% sur raspi
+  Arduino IDE 1.8.10 : 908890 69%, 45728 13% sur PC
+  Arduino IDE 1.8.10 : 908874 69%, 45728 13% sur raspi
 
-  V1-2 01/09/2021 pas installé
+  revue surveillance Alarm Acquisition(se declenchait tout le temps)
+  Ajour info log pour tracker probleme blocage
+
+  V1-2 01/09/2021 installé Cv35 10/09/2021
   remplacement mise a l'heure NTP et TZ
 
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
@@ -59,7 +63,7 @@
   Version Coupure periodique Alim routeur
 
 */
-String ver        = "V1-2";
+String ver        = "V1-3";
 int    Magique    = 8;
 
 #include <Battpct.h>
@@ -170,6 +174,7 @@ long   VUSB             = 0; // Tension USB
 long   Tension12        = 0; // Tension 24V Allumage
 int    Lum              = 0; // Luminosité 0-100%
 int    TableLum[11][2];      // Table PWM en fonction Luminosité
+unsigned long timeracquisition = 0;// marque heure passage dans Acquisition
 
 WebServer server(80);
 File UploadFile;
@@ -497,19 +502,19 @@ void setup() {
   
   ArduinoOTA.begin();
   recvOneChar();
+  timeracquisition = millis();// marque heure passage dans Acquisition
   Acquisition();
 }
 //---------------------------------------------------------------------------
 void loop() {
   recvOneChar();
-  static unsigned long timeracquisition = millis();
   if(millis() - timeracquisition > 15000){ // > boucle Acquisition = 10s
     timeracquisition = millis();
-    AcquisitionOK = false;
-    if(!AcquisitionOK){ // Alarm ont ete arretées suite pb mise a l'heure
-      lancement_Alarm();
-      Acquisition();
-    }
+    // Alarm ont ete arretées suite pb mise a l'heure
+    MajLog("Auto", "Acquisition > 10s");// renseigne log
+    arret_Alarm();
+    lancement_Alarm();
+    Acquisition();
   }
   if (rebond1 > millis()) rebond1 = millis();
 //*************** Verification Alarme Batterie Externe ***************
@@ -551,7 +556,7 @@ void loop() {
 }	//fin loop
 //---------------------------------------------------------------------------
 void Acquisition() {
-  AcquisitionOK = true;
+  timeracquisition = millis();
   static int cpt = 0; // compte le nombre de passage boucle
   static bool firstdecision = false;
   // static byte cptwifiattempt = 0;
@@ -584,6 +589,12 @@ void Acquisition() {
   }
 
   Serial.println(displayTime(0));
+  static int compteur = 0;
+  if(compteur == 1 || compteur> 4320){// 12heures
+    MajLog("Auto", "freemem = " + String(ESP.getFreeHeap()));
+    compteur = 0;
+  }
+  compteur ++;
   // Serial.print(F(" Freemem = ")), Serial.println(ESP.getFreeHeap());
   static byte nalaTension = 0;
   static byte nRetourTension = 0;
@@ -3115,7 +3126,10 @@ void setup_wifi() {
   while (WiFi.status() != WL_CONNECTED) {
     Alarm.delay(500);
     Serial.print(".");
-    if(cpt ++ > 15) return;
+    if(cpt ++ > 15){
+      MajLog("Auto","Wifi connect > 15");
+      return;
+    }
   }
 
   Serial.println("");
@@ -3126,7 +3140,7 @@ void setup_wifi() {
 //---------------------------------------------------------------------------
 void reconnect() {
   // Loop until we're reconnected
-  static byte cpt = 0;
+  byte cpt = 0;
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
@@ -3143,11 +3157,15 @@ void reconnect() {
       Alarm.delay(5000);
     }
     cpt ++;
-    if(cpt > 100){ // si connection MQTT impossible
+    // if(cpt > 100){ // si connection MQTT impossible
+    //   cpt = 0;
+    //   // ResetHard();
+    // } 
+    if(cpt > 2){
       cpt = 0;
-      ResetHard();
-    } 
-    if(cpt % 5 == 0) return;
+      return;
+      MajLog("Auto","MQTT > 2");
+    }
   }
 }
 //---------------------------------------------------------------------------
@@ -3597,6 +3615,7 @@ void ArretSonnerie() {
 void arret_Alarm(){
   Alarm.disable(DebutJour);
   Alarm.disable(FinJour);
+  Alarm.disable(loopPrincipale);
   Alarm.disable(Alim_Ext_1);
   Alarm.disable(Alim_Ext_2);
   Alarm.disable(Alim_Ext_3);
