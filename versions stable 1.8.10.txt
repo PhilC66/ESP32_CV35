@@ -1,0 +1,68 @@
+
+IDE 1.8.10
+
+Linking everything together...
+"C:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\xtensa-esp32-elf-gcc\\1.22.0-80-g6c4433a-5.2.0/bin/xtensa-esp32-elf-gcc" -nostdlib "-LC:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.2/tools/sdk/lib" "-LC:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.2/tools/sdk/ld" -T esp32_out.ld -T esp32.common.ld -T esp32.rom.ld -T esp32.peripherals.ld -T esp32.rom.spiram_incompatible_fns.ld -u ld_include_panic_highint_hdl -u call_user_start_cpu0 -Wl,--gc-sections -Wl,-static -Wl,--undefined=uxTopUsedPriority -u __cxa_guard_dummy -u __cxx_fatal_exception "-LC:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/sketch/" -T ulp_main.ld "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/sketch/ulp_main.bin.bin.o" -Wl,--start-group "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\sketch\\ESP32_CV35.ino.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\BatteriePct\\Battpct.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\ETH.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFi.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiAP.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiClient.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiGeneric.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiMulti.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiSTA.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiScan.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiServer.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WiFi\\WiFiUdp.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\NTPClient\\NTPClient.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\Time-master\\DateStrings.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\Time-master\\Time.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\Timezone-master\\Timezone.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\TimeAlarms-master\\TimeAlarms.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\PubSubClient\\PubSubClient.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\EEPROM\\EEPROM.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\SPIFFS\\SPIFFS.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\FS\\FS.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\FS\\vfs_api.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\ArduinoOTA\\ArduinoOTA.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\Update\\Updater.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WebServer\\Parsing.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WebServer\\WebServer.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\WebServer\\detail\\mimetable.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\SPI\\SPI.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\Ticker\\Ticker.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\esp32_ftpclient\\ESP32_FTPClient.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\libraries\\ESPmDNS\\ESPmDNS.cpp.o" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916\\core\\core.a" -lgcc -lopenssl -lbtdm_app -lfatfs -lwps -lcoexist -lwear_levelling -lesp_http_client -lprotobuf-c -lhal -lnewlib -ldriver -lbootloader_support -lpp -lfreemodbus -lmesh -lsmartconfig -ljsmn -lwpa -lethernet -lphy -lfrmn -lapp_trace -lfr_coefficients -lconsole -lulp -lwpa_supplicant -lfreertos -lbt -lmicro-ecc -lesp32-camera -lcxx -lxtensa-debug-module -ltcp_transport -lmdns -lvfs -lmtmn -lesp_ringbuf -lsoc -lcore -lfb_gfx -lsdmmc -llibsodium -lcoap -ltcpip_adapter -lprotocomm -lesp_event -limage_util -lc_nano -lesp-tls -lasio -lrtc -lspi_flash -lwpa2 -lwifi_provisioning -lesp32 -lface_recognition -lapp_update -lnghttp -lspiffs -lface_detection -lespnow -lnvs_flash -lesp_adc_cal -llog -ldl_lib -lsmartconfig_ack -lexpat -lfd_coefficients -lm -lmqtt -lc -lheap -lmbedtls -llwip -lnet80211 -lesp_http_server -lpthread -ljson -lesp_https_ota -lstdc++ -Wl,--end-group -Wl,-EL -o "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/ESP32_CV35.ino.elf"
+"C:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.2/tools/gen_esp32part.exe" -q "C:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.2/tools/partitions/default.csv" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/ESP32_CV35.ino.partitions.bin"
+"C:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\esptool_py\\2.6.1/esptool.exe" --chip esp32 elf2image --flash_mode dio --flash_freq 80m --flash_size 4MB -o "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/ESP32_CV35.ino.bin" "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/ESP32_CV35.ino.elf"
+esptool.py v2.6
+
+Plusieurs bibliothèque trouvées pour "NTPClient.h"
+Utilisé : F:\Documents\Arduino\libraries\NTPClient
+Non utilisé : F:\Documents\Arduino\libraries\ESP8266_Weather_Station
+Plusieurs bibliothèque trouvées pour "ArduinoOTA.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\ArduinoOTA
+Plusieurs bibliothèque trouvées pour "Battpct.h"
+Utilisé : F:\Documents\Arduino\libraries\BatteriePct
+Plusieurs bibliothèque trouvées pour "WiFi.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\WiFi
+Non utilisé : C:\Program
+Plusieurs bibliothèque trouvées pour "SPIFFS.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\SPIFFS
+Plusieurs bibliothèque trouvées pour "Update.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\Update
+Plusieurs bibliothèque trouvées pour "SPI.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\SPI
+Plusieurs bibliothèque trouvées pour "ESPmDNS.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\ESPmDNS
+Plusieurs bibliothèque trouvées pour "Timezone.h"
+Utilisé : F:\Documents\Arduino\libraries\Timezone-master
+Plusieurs bibliothèque trouvées pour "PubSubClient.h"
+Utilisé : F:\Documents\Arduino\libraries\PubSubClient
+Plusieurs bibliothèque trouvées pour "ArduinoJson.h"
+Utilisé : F:\Documents\Arduino\libraries\ArduinoJson
+Plusieurs bibliothèque trouvées pour "ESP32_FTPClient.h"
+Utilisé : F:\Documents\Arduino\libraries\esp32_ftpclient
+Plusieurs bibliothèque trouvées pour "EEPROM.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\EEPROM
+Plusieurs bibliothèque trouvées pour "FS.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\FS
+Plusieurs bibliothèque trouvées pour "WebServer.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\WebServer
+Plusieurs bibliothèque trouvées pour "Ticker.h"
+Utilisé : C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\Ticker
+Plusieurs bibliothèque trouvées pour "TimeLib.h"
+Utilisé : F:\Documents\Arduino\libraries\Time-master
+Plusieurs bibliothèque trouvées pour "TimeAlarms.h"
+Utilisé : F:\Documents\Arduino\libraries\TimeAlarms-master
+Utilisation de la bibliothèque BatteriePct version 1.2 dans le dossier: F:\Documents\Arduino\libraries\BatteriePct 
+Utilisation de la bibliothèque WiFi version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\WiFi 
+Utilisation de la bibliothèque NTPClient version 3.2.0 dans le dossier: F:\Documents\Arduino\libraries\NTPClient 
+Utilisation de la bibliothèque Time-master version 1.5 dans le dossier: F:\Documents\Arduino\libraries\Time-master 
+Utilisation de la bibliothèque Timezone-master version 1.2.2 dans le dossier: F:\Documents\Arduino\libraries\Timezone-master 
+Utilisation de la bibliothèque TimeAlarms-master version 1.5 dans le dossier: F:\Documents\Arduino\libraries\TimeAlarms-master 
+Utilisation de la bibliothèque PubSubClient version 2.8 dans le dossier: F:\Documents\Arduino\libraries\PubSubClient 
+Utilisation de la bibliothèque EEPROM version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\EEPROM 
+Utilisation de la bibliothèque SPIFFS version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\SPIFFS 
+Utilisation de la bibliothèque FS version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\FS 
+Utilisation de la bibliothèque ArduinoOTA version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\ArduinoOTA 
+Utilisation de la bibliothèque Update version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\Update 
+Utilisation de la bibliothèque WebServer version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\WebServer 
+Utilisation de la bibliothèque SPI version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\SPI 
+Utilisation de la bibliothèque Ticker version 1.1 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\Ticker 
+Utilisation de la bibliothèque ArduinoJson version 6.13.0 dans le dossier: F:\Documents\Arduino\libraries\ArduinoJson 
+Utilisation de la bibliothèque esp32_ftpclient version 0.1.4 dans le dossier: F:\Documents\Arduino\libraries\esp32_ftpclient 
+Utilisation de la bibliothèque ESPmDNS version 1.0 dans le dossier: C:\Users\phili\AppData\Local\Arduino15\packages\esp32\hardware\esp32\1.0.2\libraries\ESPmDNS 
+"C:\\Users\\phili\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\xtensa-esp32-elf-gcc\\1.22.0-80-g6c4433a-5.2.0/bin/xtensa-esp32-elf-size" -A "C:\\Users\\phili\\AppData\\Local\\Temp\\arduino_build_710916/ESP32_CV35.ino.elf"
+Le croquis utilise 909282 octets (69%) de l'espace de stockage de programmes. Le maximum est de 1310720 octets.
+Les variables globales utilisent 45728 octets (13%) de mémoire dynamique, ce qui laisse 281952 octets pour les variables locales. Le maximum est de 327680 octets.

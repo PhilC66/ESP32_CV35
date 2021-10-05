@@ -34,6 +34,16 @@
 
 	Librairie TimeAlarms.h modifiée a priori pas necessaire nonAVR = 12
 
+  V1-4 05/100/21 pas installé
+  Compilation LOLIN D32,default,80MHz, ESP32 1.0.6
+  Arduino IDE 1.8.16 : 929566 70%, 46280 14% sur PC
+  Arduino IDE 1.8.16 : 929534 70%, 46280 14% sur raspi
+  mise à jour toutes les biblio et IDE et ESP32
+  voir https://github.com/knolleary/pubsubclient/issues/624
+  Ajout timer watchdog, si bloqué dans mqtt attempt -> resetsoft
+  au demarrage si resetsoft, reprendre valeur Feux enregistré dans fichier SPIFFS status.txt
+  mise à l'heure automatique 1fois/24h
+
   V1-3 25/09/2021 installé Cv35 30/09/2021
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.2 (1.0.4 bugg?)
   Arduino IDE 1.8.10 : 908890 69%, 45728 13% sur PC
@@ -63,9 +73,11 @@
   Version Coupure periodique Alim routeur
 
 */
-String ver        = "V1-3";
+String ver        = "V1-4";
 int    Magique    = 8;
 
+#include "esp_system.h"
+#include <rom/rtc.h>
 #include <Battpct.h>
 #include <WiFi.h>
 #include <NTPClient.h>
@@ -114,6 +126,9 @@ bool    SPIFFS_present = false;
 #define nSample (1<<4)    // nSample est une puissance de 2, ici 16 (4bits)
 const String soft = "ESP32_CV35.ino.d32"; // nom du soft
 
+int wdtTimeout = 25;  //time in s to trigger the watchdog
+hw_timer_t *timer = NULL;
+
 unsigned int adc_hist[5][nSample]; // tableau stockage mesure adc, 0 Batt, 1 Proc, 2 USB, 3 12V, 5 Lum
 unsigned int adc_mm[5];            // stockage pour la moyenne mobile
 
@@ -124,6 +139,7 @@ char filecalendrier[13]  = "/filecal.csv";  // fichier en SPIFFS contenant le ca
 char filecalibration[11] = "/coeff.txt";    // fichier en SPIFFS contenant les data de calibration
 char filelog[9]          = "/log.txt";      // fichier en SPIFFS contenant le log
 char filelumlut[13]      = "/lumlut.txt";   // fichier en SPIFFS LUT luminosité
+char filestatus[13]      = "/status.txt";   // fichier en SPIFFS status Feux
 
 // static const char ntpServerName[] = "fr.pool.ntp.org";
 // int timeZone = +1;
@@ -174,7 +190,7 @@ long   VUSB             = 0; // Tension USB
 long   Tension12        = 0; // Tension 24V Allumage
 int    Lum              = 0; // Luminosité 0-100%
 int    TableLum[11][2];      // Table PWM en fonction Luminosité
-unsigned long timeracquisition = 0;// marque heure passage dans Acquisition
+// unsigned long timeracquisition = 0;// marque heure passage dans Acquisition
 
 WebServer server(80);
 File UploadFile;
@@ -251,7 +267,7 @@ WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 WiFiUDP ntpUDP;
 int GTMOffset = 0; // SET TO UTC TIME
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", GTMOffset*60*60, 60*60*1000);
+NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", GTMOffset*60*60, 24*60*60*1000);
 
 // Central European Time (Frankfurt, Paris)
 TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
@@ -269,6 +285,13 @@ void IRAM_ATTR handleInterruptIp1() { // Entrée 1
   }
   portEXIT_CRITICAL_ISR(&mux);
 
+}
+
+void IRAM_ATTR resetModule() { // arrive ici si watchdog
+  // enregistrer Feux dans SPIFFS pour redemarrage idem
+  ets_printf("reboot\n");
+  esp_restart(); // "SW_CPU_RESET" case 12
+  // ResetHard(); // "POWERON_RESET"
 }
 //---------------------------------------------------------------------------
 void setup() {
@@ -393,6 +416,7 @@ void setup() {
   ArduinoOTA.setPasswordHash(OTApwdhash);
   ArduinoOTA
   .onStart([]() {
+    // arreter WatchdogTimer
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH)
       type = "sketch";
@@ -500,54 +524,29 @@ void setup() {
   server.begin();
   Serial.println("HTTP server started");
   
+  if(rtc_get_reset_reason(0) == 12){ // SW_CPU_RESET, reset watchdog
+    Feux = read_status();
+    GestionFeux();
+  }
   ArduinoOTA.begin();
   recvOneChar();
-  timeracquisition = millis();// marque heure passage dans Acquisition
+  timer = timerBegin(0, 80, true);                            //timer 0, div 80
+  timerAttachInterrupt(timer, &resetModule, true);            //attach callback
+  timerAlarmWrite(timer, wdtTimeout * uS_TO_S_FACTOR, false); //set time in us
+  timerAlarmEnable(timer);
   Acquisition();
 }
 //---------------------------------------------------------------------------
 void loop() {
   recvOneChar();
-  if(millis() - timeracquisition > 15000){ // > boucle Acquisition = 10s
-    timeracquisition = millis();
-    // Alarm ont ete arretées suite pb mise a l'heure
-    MajLog("Auto", "Acquisition > 10s");// renseigne log
-    arret_Alarm();
-    lancement_Alarm();
-    Acquisition();
-  }
+
+  timerWrite(timer, 0); //reset timer (feed watchdog)
+
   if (rebond1 > millis()) rebond1 = millis();
-//*************** Verification Alarme Batterie Externe ***************
-  static unsigned long startE1 = millis();
-  static bool FlagStartE1 = true;
-  // lecture entree Ip1 (IRQ_Cpt_Ip1)
-  if (config.Ip1 && digitalRead(PinIp1) == 0 && !FlagAlarmeBattExt){
-    if(FlagStartE1){
-      FlagStartE1 = false;
-      startE1 = millis();
-    }
-    if(millis() - startE1 > 5000){ // temporisation lecture
-      MajLog("Auto", "Alarme Batt Externe");// taquet Ouvert
-      FlagStartE1 = true;
-      FlagAlarmeBattExt = true;
-    }
-  } else if(config.Ip1 && digitalRead(PinIp1) == 1 && FlagAlarmeBattExt){
-    if(FlagStartE1){
-      FlagStartE1 = false;
-      startE1 = millis();
-    }
-    if(millis() - startE1 > 5000){ // temporisation lecture
-      MajLog("Auto", "Fin Alarme Batt Externe");// taquet Fermé
-      FlagStartE1 = true;
-      FlagAlarmeBattExt = false;
-    }
-  }
-  if(!FlagStartE1 && (millis() - startE1 > 7000)){ // reset tempo lecture
-    FlagStartE1 = true;
-    // Serial.print("FlagStartE1:"),Serial.println(FlagStartE1);
-  }
-//*************** Verification commande Feux Blanc ***************  
-  VerifCdeFBlc();
+
+  verifAlarmeBattExt(); // Verification Alarme Batterie Externe
+
+  VerifCdeFBlc(); // Verification commande Feux Blanc
   
   mqttClient.loop();
   server.handleClient(); // Listen for client connections
@@ -556,7 +555,7 @@ void loop() {
 }	//fin loop
 //---------------------------------------------------------------------------
 void Acquisition() {
-  timeracquisition = millis();
+  // timeracquisition = millis();
   static int cpt = 0; // compte le nombre de passage boucle
   static bool firstdecision = false;
   // static byte cptwifiattempt = 0;
@@ -590,9 +589,9 @@ void Acquisition() {
 
   Serial.println(displayTime(0));
   static int compteur = 0;
-  if(compteur == 1 || compteur> 4320){// 12heures
+  if(compteur == 0 || compteur> 4320){// 12heures
     MajLog("Auto", "freemem = " + String(ESP.getFreeHeap()));
-    compteur = 0;
+    compteur = 1;
   }
   compteur ++;
   // Serial.print(F(" Freemem = ")), Serial.println(ESP.getFreeHeap());
@@ -679,6 +678,7 @@ void Acquisition() {
 }
 //---------------------------------------------------------------------------
 void GestionFeux() {
+  record_status(); // enregistre Feux dans fichier SPIFFS
   switch (Feux) {
     case 0: // Violet 0, Blanc 0
       Serial.println("Feux Eteint");
@@ -2406,9 +2406,9 @@ void OuvrirLumLUT() {
       TableLum[i][1] = v2;
     }
   }
-  for (int i = 0; i < 11 ; i++) {
-    Serial.print(TableLum[i][0]), Serial.print(","), Serial.println(TableLum[i][1]);
-  }
+  // for (int i = 0; i < 11 ; i++) {
+  //   Serial.print(TableLum[i][0]), Serial.print(","), Serial.println(TableLum[i][1]);
+  // }
 }
 //---------------------------------------------------------------------------
 int lumlut(int l) {
@@ -2452,13 +2452,13 @@ void OuvrirCalendrier() {
   }
   readFile(SPIFFS, filecalendrier);
 
-  for (int m = 1; m < 13; m++) {
-    for (int j = 1; j < 32; j++) {
-      Serial.print(calendrier[m][j]), Serial.print(char(44));
-    }
-    Serial.println();
-  }
-  listDir(SPIFFS, "/", 0);
+  // for (int m = 1; m < 13; m++) {
+  //   for (int j = 1; j < 32; j++) {
+  //     Serial.print(calendrier[m][j]), Serial.print(char(44));
+  //   }
+  //   Serial.println();
+  // }
+  // listDir(SPIFFS, "/", 0);
 
 }
 //---------------------------------------------------------------------------
@@ -2708,9 +2708,18 @@ void action_wakeup_reason(byte wr) { // action en fonction du wake up
         FirstWakeup = false;
         if (HActuelledec() > config.DebutJour) {
           // premier lancement en journée
-          SignalVie();
+          if(rtc_get_reset_reason(0) != 12){ // si pas SW_CPU_RESET, reset watchdog
+            SignalVie();
+          }
         }
         break;
+      } else { // nouveau wake up en journée (suite reset routeur)
+        Sbidon = F("nouveau wakeup journée");
+        Serial.println(Sbidon);
+        MajLog(F("Auto"), Sbidon);    
+        // Feux = 1; // on garde valeur Feux memorisée
+        MajLog("Auto", "Feu=" + String(Feux));
+        GestionFeux();
       }
       if ((calendrier[month()][day()] ^ FlagCircule) && jour) { // jour circulé & jour
       //rien
@@ -3157,14 +3166,9 @@ void reconnect() {
       Alarm.delay(5000);
     }
     cpt ++;
-    // if(cpt > 100){ // si connection MQTT impossible
-    //   cpt = 0;
-    //   // ResetHard();
-    // } 
     if(cpt > 2){
-      cpt = 0;
-      return;
       MajLog("Auto","MQTT > 2");
+      return;
     }
   }
 }
@@ -3637,6 +3641,54 @@ void demandereset(){
   Serial.println("Reset Hard");
   FlagReset = true;
   SendHTML_Content();
+}
+//---------------------------------------------------------------------------
+void verifAlarmeBattExt(){
+//*************** Verification Alarme Batterie Externe ***************
+  static unsigned long startE1 = millis();
+  static bool FlagStartE1 = true;
+  // lecture entree Ip1 (IRQ_Cpt_Ip1)
+  if (config.Ip1 && digitalRead(PinIp1) == 0 && !FlagAlarmeBattExt){
+    if(FlagStartE1){
+      FlagStartE1 = false;
+      startE1 = millis();
+    }
+    if(millis() - startE1 > 5000){ // temporisation lecture
+      MajLog("Auto", "Alarme Batt Externe");// taquet Ouvert
+      FlagStartE1 = true;
+      FlagAlarmeBattExt = true;
+    }
+  } else if(config.Ip1 && digitalRead(PinIp1) == 1 && FlagAlarmeBattExt){
+    if(FlagStartE1){
+      FlagStartE1 = false;
+      startE1 = millis();
+    }
+    if(millis() - startE1 > 5000){ // temporisation lecture
+      MajLog("Auto", "Fin Alarme Batt Externe");// taquet Fermé
+      FlagStartE1 = true;
+      FlagAlarmeBattExt = false;
+    }
+  }
+  if(!FlagStartE1 && (millis() - startE1 > 7000)){ // reset tempo lecture
+    FlagStartE1 = true;
+    // Serial.print("FlagStartE1:"),Serial.println(FlagStartE1);
+  }
+}
+//---------------------------------------------------------------------------
+void record_status(){
+  File f = SPIFFS.open(filestatus,"w+");
+  f.println(String(Feux));
+  f.close();
+}
+//---------------------------------------------------------------------------
+int read_status(){
+  File f = SPIFFS.open(filestatus,"r");
+  Sbidon = f.readStringUntil('\n');
+  f.close();
+  if(Sbidon.toInt() >= 0 && Sbidon.toInt() < 8){
+    return Sbidon.toInt();
+  }
+  return 0;
 }
 //---------------------------------------------------------------------------
 /* --------------------  test local serial seulement ----------------------*/
