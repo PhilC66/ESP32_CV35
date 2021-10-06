@@ -36,8 +36,8 @@
 
   V1-4 05/100/21 pas installé
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.6
-  Arduino IDE 1.8.16 : 929566 70%, 46280 14% sur PC
-  Arduino IDE 1.8.16 : 929534 70%, 46280 14% sur raspi
+  Arduino IDE 1.8.16 : 929858 70%, 46280 14% sur PC
+  Arduino IDE 1.8.16 : 929826 70%, 46280 14% sur raspi
   mise à jour toutes les biblio et IDE et ESP32
   voir https://github.com/knolleary/pubsubclient/issues/624
   Ajout timer watchdog, si bloqué dans mqtt attempt -> resetsoft
@@ -190,7 +190,7 @@ long   VUSB             = 0; // Tension USB
 long   Tension12        = 0; // Tension 24V Allumage
 int    Lum              = 0; // Luminosité 0-100%
 int    TableLum[11][2];      // Table PWM en fonction Luminosité
-// unsigned long timeracquisition = 0;// marque heure passage dans Acquisition
+unsigned long timeracquisition = 0;// marque heure passage dans Acquisition
 
 WebServer server(80);
 File UploadFile;
@@ -530,6 +530,7 @@ void setup() {
   }
   ArduinoOTA.begin();
   recvOneChar();
+  timeracquisition = millis();// marque heure passage dans Acquisition
   timer = timerBegin(0, 80, true);                            //timer 0, div 80
   timerAttachInterrupt(timer, &resetModule, true);            //attach callback
   timerAlarmWrite(timer, wdtTimeout * uS_TO_S_FACTOR, false); //set time in us
@@ -540,6 +541,14 @@ void setup() {
 void loop() {
   recvOneChar();
 
+  if(millis() - timeracquisition > 20000){ // > boucle Acquisition = 10s
+    timeracquisition = millis();
+    // Alarm ont ete arretées suite pb mise a l'heure
+    MajLog("Auto", "Acquisition > 10s");// renseigne log
+    arret_Alarm();
+    lancement_Alarm();
+    Acquisition();
+  }
   timerWrite(timer, 0); //reset timer (feed watchdog)
 
   if (rebond1 > millis()) rebond1 = millis();
@@ -555,7 +564,7 @@ void loop() {
 }	//fin loop
 //---------------------------------------------------------------------------
 void Acquisition() {
-  // timeracquisition = millis();
+  timeracquisition = millis();
   static int cpt = 0; // compte le nombre de passage boucle
   static bool firstdecision = false;
   // static byte cptwifiattempt = 0;
@@ -568,32 +577,30 @@ void Acquisition() {
     // setSyncProvider(getNtpTime); // mise à l'heure
     // if(cptwifiattempt ++ > 10)ResetHard();
   }
-  
+
   if (!mqttClient.connected() && WiFi.status() == WL_CONNECTED) {
     reconnect();
   }
   AIntru_HeureActuelle();
 
-  if (cpt > 2 && !firstdecision && timeStatus()!= timeNotSet) {
+  if (cpt > 3 && !firstdecision && timeStatus()!= timeNotSet) {
     /* une seule fois au demarrage attendre au moins 3 passages
        et mise a l'heure OK*/
     action_wakeup_reason(get_wakeup_reason());
     firstdecision = true;
     // setSyncInterval(300); // retour intervalle MAJheure normal
   }
-  cpt ++;
 
   if (CoeffTension[0] == 0 || CoeffTension[1] == 0 || CoeffTension[2] == 0 || CoeffTension[3] == 0) {
     OuvrirFichierCalibration(); // patch relecture des coeff perdu
   }
 
   Serial.println(displayTime(0));
-  static int compteur = 0;
-  if(compteur == 0 || compteur> 4320){// 12heures
+  if(cpt == 0 || cpt> 4320){// 12heures
     MajLog("Auto", "freemem = " + String(ESP.getFreeHeap()));
-    compteur = 1;
+    cpt = 1;
   }
-  compteur ++;
+  cpt ++;
   // Serial.print(F(" Freemem = ")), Serial.println(ESP.getFreeHeap());
   static byte nalaTension = 0;
   static byte nRetourTension = 0;
@@ -3582,7 +3589,8 @@ void VerifCdeFBlc(){
     if(millis()- tmesure > periodemesures){// periode mesure > periodemesures
       if(compteurmesureres > 1200){
         // pour eviter fausses alarmes quand proc occupé par ailleurs
-        Serial.print("Cpt Cde FBLc:"),Serial.print(compteurmesureres);
+        Serial.print("tmesure:"),Serial.print(tmesure);
+        Serial.print(" Cpt Cde FBLc:"),Serial.print(compteurmesureres);
         Serial.print(", accu:"),Serial.print(accumesureres);
         Serial.print(", %:"),Serial.println((float)accumesureres/compteurmesureres);
         if((float)accumesureres/compteurmesureres < .35 ){// .5 = M, .75 = S
