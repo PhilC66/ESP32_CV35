@@ -34,7 +34,11 @@
 
 	Librairie TimeAlarms.h modifiée a priori pas necessaire nonAVR = 12
 
-  V1-4 05/100/21 pas installé
+  to do 
+  1-augmenter nombre tentative conncet Wifi 15->30
+  2-parametre reset routeur 1,2 ou 3 fois
+
+  V1-4 05/10/21 installé le 07/10/2021
   Compilation LOLIN D32,default,80MHz, ESP32 1.0.6
   Arduino IDE 1.8.16 : 929858 70%, 46280 14% sur PC
   Arduino IDE 1.8.16 : 929826 70%, 46280 14% sur raspi
@@ -73,7 +77,7 @@
   Version Coupure periodique Alim routeur
 
 */
-String ver        = "V1-4";
+String ver        = "V1-4-1";
 int    Magique    = 8;
 
 #include "esp_system.h"
@@ -270,8 +274,8 @@ int GTMOffset = 0; // SET TO UTC TIME
 NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", GTMOffset*60*60, 24*60*60*1000);
 
 // Central European Time (Frankfurt, Paris)
-TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
-TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European Standard Time
+TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 60*config.hhete};     // Central European Summer Time
+TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60*config.hhiver};       // Central European Standard Time
 Timezone CE(CEST, CET);
 // unsigned int localPort = 8888;  // local port to listen for UDP packets
 // time_t getNtpTime();
@@ -2635,11 +2639,11 @@ void AIntru_HeureActuelle() {
       IntruF();
     }
   }
-  if(HeureEte()){
-    // timeZone = config.hete;
-  } else {
-    // timeZone = config.hhiver;
-  }
+  // if(HeureEte()){
+  //   // timeZone = config.hete;
+  // } else {
+  //   // timeZone = config.hhiver;
+  // }
 }
 //---------------------------------------------------------------------------
 void IntruF() { // Charge parametre Alarme Intrusion Jour
