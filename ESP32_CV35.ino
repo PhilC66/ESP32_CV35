@@ -274,7 +274,7 @@ int GTMOffset = 0; // SET TO UTC TIME
 NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", GTMOffset*60*60, 24*60*60*1000);
 
 // Central European Time (Frankfurt, Paris)
-TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 60*config.hhete};     // Central European Summer Time
+TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 60*config.hete};     // Central European Summer Time
 TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60*config.hhiver};       // Central European Standard Time
 Timezone CE(CEST, CET);
 // unsigned int localPort = 8888;  // local port to listen for UDP packets
